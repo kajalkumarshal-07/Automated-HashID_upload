@@ -1,0 +1,125 @@
+Azure App Registration & Required Permissions
+
+To enable automated Autopilot device upload and Microsoft Graph integration, an Azure App Registration is required.
+
+🏗 Step 1 – Create Azure App Registration
+
+Go to Azure Portal
+
+Navigate to:
+
+Azure Active Directory → App registrations → New registration
+
+
+Configure:
+
+Setting	Value
+Name	Autopilot Upload Automation
+Supported account types	Single tenant
+Redirect URI	(Optional for future API integration)
+
+Click Register
+
+🔑 Step 2 – Create Client Secret
+
+Go to:
+
+Certificates & secrets
+
+
+Click New client secret
+
+Set expiration
+
+Copy the secret value immediately
+
+📌 Step 3 – API Permissions (Microsoft Graph)
+
+Go to:
+
+API Permissions → Add Permission → Microsoft Graph
+
+🔹 Application Permissions (Recommended for automation)
+
+Add the following:
+
+Permission	Purpose
+Device.ReadWrite.All	Manage devices
+DeviceManagementManagedDevices.ReadWrite.All	Manage enrolled devices
+DeviceManagementServiceConfig.ReadWrite.All	Manage Autopilot
+DeviceManagementConfiguration.ReadWrite.All	Manage configuration
+Group.ReadWrite.All	Assign devices to groups (optional)
+User.Read.All	Read user info
+
+After adding:
+
+👉 Click Grant admin consent
+
+🛡 Minimum Required Permissions (If You Want Restricted Model)
+
+If you want a more secure model:
+
+Permission	Required?
+DeviceManagementServiceConfig.ReadWrite.All	✅ Mandatory
+Device.ReadWrite.All	✅ Required
+Group.ReadWrite.All	Optional
+🧾 Step 4 – Collect Required Values
+
+You will need:
+
+Value	Where to Find
+Tenant ID	Azure AD → Overview
+Client ID	App Registration → Overview
+Client Secret	Certificates & Secrets
+🔄 Optional: Using Delegated Permissions Instead
+
+If using interactive login during OOBE:
+
+Use delegated permissions:
+
+DeviceManagementServiceConfig.ReadWrite.All
+
+User.Read
+
+This requires technician sign-in.
+
+📊 Microsoft Graph Endpoints Used
+
+For Autopilot automation, the tool may interact with:
+
+POST /deviceManagement/windowsAutopilotDeviceIdentities
+GET  /deviceManagement/windowsAutopilotDeviceIdentities
+
+
+Graph API Base URL:
+
+https://graph.microsoft.com/v1.0/
+
+🛡 Security Best Practices
+
+Never hardcode Client Secret in script
+
+Store secrets securely (Azure Key Vault recommended)
+
+Use certificate-based authentication for enterprise
+
+Rotate secrets regularly
+
+Restrict app to least privilege
+
+🏢 Enterprise Recommendation (Production Deployment)
+
+For enterprise environments:
+
+✔ Use Certificate-based authentication
+✔ Restrict app to specific security group
+✔ Enable Conditional Access
+✔ Monitor Graph API usage logs
+
+📌 Permission Summary
+Area	Required
+Azure AD App	Yes
+Microsoft Graph API	Yes
+Admin Consent	Required
+Intune License	Required
+Autopilot Enrollment	Required

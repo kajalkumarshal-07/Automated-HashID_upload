@@ -1,0 +1,1189 @@
+# Windows Autopilot Fully Automated Upload Tool v1.4
+# Includes Visual Guide Tab
+
+# Load required assemblies
+try {
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+    [System.Windows.Forms.Application]::EnableVisualStyles()
+} catch {
+    Write-Host "Error loading assemblies. Please run PowerShell as Administrator." -ForegroundColor Red
+    exit
+}
+
+# ============================================
+# CONFIGURATION
+# ============================================
+$Script:ModuleName = "Get-WindowsAutopilotInfo"
+$Script:ModuleInstalled = $false
+$Script:IsAdmin = $false
+$Script:OnlineMode = $true
+
+# This is the exact URL that Get-WindowsAutopilotInfo -Online opens
+$Script:IntuneEnrollmentURL = "https://login.microsoftonline.com/common/oauth2/authorize?client_id=29d9ed98-a469-4536-ade2-f981bc1d605e&response_type=code&redirect_uri=https%3A%2F%2Fenterpriseregistration.windows.net%2Fenrollment%2Ftoken%2F&resource=urn%3Ams-drs%3Aenterpriseregistration.windows.net"
+
+# ============================================
+# MAIN FORM
+# ============================================
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "Windows Autopilot Fully Automated Upload Tool v1.4"
+$form.Size = New-Object System.Drawing.Size(1000, 810)
+$form.StartPosition = "CenterScreen"
+$form.FormBorderStyle = "FixedDialog"
+$form.MaximizeBox = $false
+$form.BackColor = [System.Drawing.Color]::White
+
+# Try to set icon if available
+try {
+    $form.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon("C:\Windows\System32\DeviceEnroller.exe")
+} catch {
+    # Use default icon if not available
+}
+
+# Header Panel
+$headerPanel = New-Object System.Windows.Forms.Panel
+$headerPanel.Size = New-Object System.Drawing.Size(984, 80)
+$headerPanel.Location = New-Object System.Drawing.Point(8, 8)
+$headerPanel.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 212)
+
+# Title Label
+$titleLabel = New-Object System.Windows.Forms.Label
+$titleLabel.Text = "Windows Autopilot - Fully Automated Upload"
+$titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold)
+$titleLabel.ForeColor = [System.Drawing.Color]::White
+$titleLabel.Size = New-Object System.Drawing.Size(750, 40)
+$titleLabel.Location = New-Object System.Drawing.Point(20, 15)
+$headerPanel.Controls.Add($titleLabel)
+
+# Subtitle Label
+$subtitleLabel = New-Object System.Windows.Forms.Label
+$subtitleLabel.Text = "Installs module and opens Intune browser portal for upload"
+$subtitleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+$subtitleLabel.ForeColor = [System.Drawing.Color]::LightGray
+$subtitleLabel.Size = New-Object System.Drawing.Size(750, 25)
+$subtitleLabel.Location = New-Object System.Drawing.Point(20, 50)
+$headerPanel.Controls.Add($subtitleLabel)
+
+# Status Label
+$statusLabel = New-Object System.Windows.Forms.Label
+$statusLabel.Text = "Initializing..."
+$statusLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$statusLabel.ForeColor = [System.Drawing.Color]::LightGreen
+$statusLabel.Size = New-Object System.Drawing.Size(200, 25)
+$statusLabel.Location = New-Object System.Drawing.Point(760, 15)
+$statusLabel.TextAlign = "MiddleRight"
+$headerPanel.Controls.Add($statusLabel)
+
+# Progress Bar
+$progressBar = New-Object System.Windows.Forms.ProgressBar
+$progressBar.Size = New-Object System.Drawing.Size(984, 20)
+$progressBar.Location = New-Object System.Drawing.Point(8, 85)
+$progressBar.Style = "Continuous"
+$progressBar.Visible = $false
+$form.Controls.Add($progressBar)
+
+# Tab Control
+$tabControl = New-Object System.Windows.Forms.TabControl
+$tabControl.Size = New-Object System.Drawing.Size(984, 627)
+$tabControl.Location = New-Object System.Drawing.Point(8, 110)
+
+# ============================================
+# TAB 1: UPLOAD
+# ============================================
+$uploadTab = New-Object System.Windows.Forms.TabPage
+$uploadTab.Text = "Upload"
+$uploadTab.BackColor = [System.Drawing.Color]::White
+
+# Main Upload Panel
+$uploadMainPanel = New-Object System.Windows.Forms.Panel
+$uploadMainPanel.Size = New-Object System.Drawing.Size(980, 595)
+$uploadMainPanel.Location = New-Object System.Drawing.Point(10, 10)
+
+# Upload Section
+$uploadSection = New-Object System.Windows.Forms.Panel
+$uploadSection.Size = New-Object System.Drawing.Size(944, 280)
+$uploadSection.Location = New-Object System.Drawing.Point(10, 10)
+$uploadSection.BorderStyle = "FixedSingle"
+$uploadSection.BackColor = [System.Drawing.Color]::FromArgb(240, 247, 255)
+
+$uploadTitle = New-Object System.Windows.Forms.Label
+$uploadTitle.Text = "FULLY AUTOMATED INTUNE UPLOAD"
+$uploadTitle.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
+$uploadTitle.ForeColor = [System.Drawing.Color]::FromArgb(0, 120, 212)
+$uploadTitle.Size = New-Object System.Drawing.Size(500, 40)
+$uploadTitle.Location = New-Object System.Drawing.Point(20, 20)
+$uploadSection.Controls.Add($uploadTitle)
+
+$uploadDesc = New-Object System.Windows.Forms.Label
+$uploadDesc.Text = "Click 'UPLOAD NOW' to automatically:`n1. Install Get-WindowsAutopilotInfo module (if needed)`n2. Configure PowerShell settings`n3. Open Intune authentication portal in browser`n4. Complete upload via browser interface"
+$uploadDesc.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$uploadDesc.Size = New-Object System.Drawing.Size(900, 100)
+$uploadDesc.Location = New-Object System.Drawing.Point(20, 60)
+$uploadSection.Controls.Add($uploadDesc)
+
+# Upload Button
+$uploadButton = New-Object System.Windows.Forms.Button
+$uploadButton.Text = "UPLOAD NOW"
+$uploadButton.Size = New-Object System.Drawing.Size(300, 70)
+$uploadButton.Location = New-Object System.Drawing.Point(322, 150)
+$uploadButton.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold)
+$uploadButton.BackColor = [System.Drawing.Color]::FromArgb(40, 167, 69)
+$uploadButton.ForeColor = [System.Drawing.Color]::White
+$uploadButton.FlatStyle = "Flat"
+$uploadButton.Enabled = $false
+$uploadSection.Controls.Add($uploadButton)
+
+# URL Display
+$urlLabel = New-Object System.Windows.Forms.Label
+$urlLabel.Text = "Intune Authentication URL:"
+$urlLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+$urlLabel.Size = New-Object System.Drawing.Size(200, 25)
+$urlLabel.Location = New-Object System.Drawing.Point(20, 230)
+$uploadSection.Controls.Add($urlLabel)
+
+$urlText = New-Object System.Windows.Forms.TextBox
+$urlText.Size = New-Object System.Drawing.Size(900, 25)
+$urlText.Location = New-Object System.Drawing.Point(20, 255)
+$urlText.Font = New-Object System.Drawing.Font("Consolas", 8)
+$urlText.BackColor = [System.Drawing.Color]::FromArgb(248, 249, 250)
+$urlText.ReadOnly = $true
+$urlText.Text = $Script:IntuneEnrollmentURL
+$uploadSection.Controls.Add($urlText)
+
+$uploadMainPanel.Controls.Add($uploadSection)
+
+# Device Info Section
+$deviceSection = New-Object System.Windows.Forms.Panel
+$deviceSection.Size = New-Object System.Drawing.Size(944, 295)
+$deviceSection.Location = New-Object System.Drawing.Point(10, 300)
+$deviceSection.BorderStyle = "FixedSingle"
+$deviceSection.BackColor = [System.Drawing.Color]::FromArgb(255, 248, 225)
+
+$deviceTitle = New-Object System.Windows.Forms.Label
+$deviceTitle.Text = "DEVICE INFORMATION"
+$deviceTitle.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
+$deviceTitle.ForeColor = [System.Drawing.Color]::FromArgb(0, 68, 120)
+$deviceTitle.Size = New-Object System.Drawing.Size(400, 30)
+$deviceTitle.Location = New-Object System.Drawing.Point(20, 20)
+$deviceSection.Controls.Add($deviceTitle)
+
+# Device Info Grid
+$deviceGrid = New-Object System.Windows.Forms.DataGridView
+$deviceGrid.Size = New-Object System.Drawing.Size(900, 210)
+$deviceGrid.Location = New-Object System.Drawing.Point(20, 60)
+$deviceGrid.RowHeadersVisible = $false
+$deviceGrid.AllowUserToAddRows = $false
+$deviceGrid.AllowUserToDeleteRows = $false
+$deviceGrid.ReadOnly = $true
+$deviceGrid.SelectionMode = "FullRowSelect"
+$deviceGrid.AutoSizeColumnsMode = "Fill"
+$deviceGrid.BackgroundColor = [System.Drawing.Color]::White
+$deviceGrid.BorderStyle = "None"
+$deviceGrid.ColumnHeadersHeightSizeMode = "DisableResizing"
+$deviceGrid.ColumnHeadersHeight = 30
+
+# Add columns
+$deviceGrid.Columns.Add("Property", "Property") | Out-Null
+$deviceGrid.Columns.Add("Value", "Value") | Out-Null
+$deviceGrid.Columns[0].Width = 200
+$deviceGrid.Columns[0].DefaultCellStyle.BackColor = [System.Drawing.Color]::FromArgb(248, 249, 250)
+$deviceGrid.Columns[0].DefaultCellStyle.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$deviceGrid.Columns[1].Width = 680
+
+$deviceSection.Controls.Add($deviceGrid)
+$uploadMainPanel.Controls.Add($deviceSection)
+
+$uploadTab.Controls.Add($uploadMainPanel)
+
+# ============================================
+# TAB 2: INFO
+# ============================================
+$infoTab = New-Object System.Windows.Forms.TabPage
+$infoTab.Text = "Info"
+$infoTab.BackColor = [System.Drawing.Color]::White
+
+# Create a flow layout panel for better scrolling
+$infoFlowPanel = New-Object System.Windows.Forms.FlowLayoutPanel
+$infoFlowPanel.Size = New-Object System.Drawing.Size(964, 595)
+$infoFlowPanel.Location = New-Object System.Drawing.Point(0, 0)
+$infoFlowPanel.FlowDirection = "TopDown"
+$infoFlowPanel.WrapContents = $false
+$infoFlowPanel.AutoScroll = $true
+$infoFlowPanel.AutoSize = $false
+
+# Info Title Panel
+$infoTitlePanel = New-Object System.Windows.Forms.Panel
+$infoTitlePanel.Size = New-Object System.Drawing.Size(944, 60)
+$infoTitlePanel.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 212)
+$infoTitlePanel.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 10)
+
+$infoTitle = New-Object System.Windows.Forms.Label
+$infoTitle.Text = "COMPLETE AUTOMATED PROCESS"
+$infoTitle.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold)
+$infoTitle.ForeColor = [System.Drawing.Color]::White
+$infoTitle.Size = New-Object System.Drawing.Size(900, 40)
+$infoTitle.Location = New-Object System.Drawing.Point(22, 10)
+$infoTitle.TextAlign = "MiddleCenter"
+$infoTitlePanel.Controls.Add($infoTitle)
+
+$infoFlowPanel.Controls.Add($infoTitlePanel)
+
+# Step 1 Panel
+$step1Panel = New-Object System.Windows.Forms.Panel
+$step1Panel.Size = New-Object System.Drawing.Size(944, 120)
+$step1Panel.BackColor = [System.Drawing.Color]::FromArgb(235, 245, 255)
+$step1Panel.BorderStyle = "FixedSingle"
+$step1Panel.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 10)
+
+$step1Number = New-Object System.Windows.Forms.Label
+$step1Number.Text = "1"
+$step1Number.Font = New-Object System.Drawing.Font("Segoe UI", 24, [System.Drawing.FontStyle]::Bold)
+$step1Number.ForeColor = [System.Drawing.Color]::FromArgb(0, 120, 212)
+$step1Number.Size = New-Object System.Drawing.Size(50, 50)
+$step1Number.Location = New-Object System.Drawing.Point(20, 20)
+$step1Number.TextAlign = "MiddleCenter"
+$step1Panel.Controls.Add($step1Number)
+
+$step1Title = New-Object System.Windows.Forms.Label
+$step1Title.Text = "Check & Install PowerShell Module"
+$step1Title.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$step1Title.ForeColor = [System.Drawing.Color]::FromArgb(0, 68, 120)
+$step1Title.Size = New-Object System.Drawing.Size(800, 30)
+$step1Title.Location = New-Object System.Drawing.Point(80, 20)
+$step1Panel.Controls.Add($step1Title)
+
+$step1Desc = New-Object System.Windows.Forms.Label
+$step1Desc.Text = "• Checks if Get-WindowsAutopilotInfo module is installed`n• Automatically installs using: Install-Script -Name Get-WindowsAutopilotInfo -Force`n• Configures PowerShell settings (TLS, Execution Policy)"
+$step1Desc.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+$step1Desc.Size = New-Object System.Drawing.Size(800, 60)
+$step1Desc.Location = New-Object System.Drawing.Point(80, 50)
+$step1Panel.Controls.Add($step1Desc)
+
+$infoFlowPanel.Controls.Add($step1Panel)
+
+# Step 2 Panel
+$step2Panel = New-Object System.Windows.Forms.Panel
+$step2Panel.Size = New-Object System.Drawing.Size(944, 100)
+$step2Panel.BackColor = [System.Drawing.Color]::FromArgb(235, 245, 255)
+$step2Panel.BorderStyle = "FixedSingle"
+$step2Panel.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 10)
+
+$step2Number = New-Object System.Windows.Forms.Label
+$step2Number.Text = "2"
+$step2Number.Font = New-Object System.Drawing.Font("Segoe UI", 24, [System.Drawing.FontStyle]::Bold)
+$step2Number.ForeColor = [System.Drawing.Color]::FromArgb(0, 120, 212)
+$step2Number.Size = New-Object System.Drawing.Size(50, 50)
+$step2Number.Location = New-Object System.Drawing.Point(20, 20)
+$step2Number.TextAlign = "MiddleCenter"
+$step2Panel.Controls.Add($step2Number)
+
+$step2Title = New-Object System.Windows.Forms.Label
+$step2Title.Text = "Open Intune Browser Portal"
+$step2Title.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$step2Title.ForeColor = [System.Drawing.Color]::FromArgb(0, 68, 120)
+$step2Title.Size = New-Object System.Drawing.Size(800, 30)
+$step2Title.Location = New-Object System.Drawing.Point(80, 20)
+$step2Panel.Controls.Add($step2Title)
+
+$step2Desc = New-Object System.Windows.Forms.Label
+$step2Desc.Text = "• Opens Intune authentication portal in your default browser`n• Uses the exact same URL as Get-WindowsAutopilotInfo -Online"
+$step2Desc.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+$step2Desc.Size = New-Object System.Drawing.Size(800, 40)
+$step2Desc.Location = New-Object System.Drawing.Point(80, 50)
+$step2Panel.Controls.Add($step2Desc)
+
+$infoFlowPanel.Controls.Add($step2Panel)
+
+# Step 3 Panel
+$step3Panel = New-Object System.Windows.Forms.Panel
+$step3Panel.Size = New-Object System.Drawing.Size(944, 120)
+$step3Panel.BackColor = [System.Drawing.Color]::FromArgb(235, 245, 255)
+$step3Panel.BorderStyle = "FixedSingle"
+$step3Panel.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 10)
+
+$step3Number = New-Object System.Windows.Forms.Label
+$step3Number.Text = "3"
+$step3Number.Font = New-Object System.Drawing.Font("Segoe UI", 24, [System.Drawing.FontStyle]::Bold)
+$step3Number.ForeColor = [System.Drawing.Color]::FromArgb(0, 120, 212)
+$step3Number.Size = New-Object System.Drawing.Size(50, 50)
+$step3Number.Location = New-Object System.Drawing.Point(20, 20)
+$step3Number.TextAlign = "MiddleCenter"
+$step3Panel.Controls.Add($step3Number)
+
+$step3Title = New-Object System.Windows.Forms.Label
+$step3Title.Text = "Complete Authentication in Browser"
+$step3Title.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$step3Title.ForeColor = [System.Drawing.Color]::FromArgb(0, 68, 120)
+$step3Title.Size = New-Object System.Drawing.Size(800, 30)
+$step3Title.Location = New-Object System.Drawing.Point(80, 20)
+$step3Panel.Controls.Add($step3Title)
+
+$step3Desc = New-Object System.Windows.Forms.Label
+$step3Desc.Text = "• Sign in with Intune Administrator credentials (user@domain.com)`n• Complete Microsoft authentication in the browser`n• Device hardware hash is automatically uploaded"
+$step3Desc.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+$step3Desc.Size = New-Object System.Drawing.Size(800, 60)
+$step3Desc.Location = New-Object System.Drawing.Point(80, 50)
+$step3Panel.Controls.Add($step3Desc)
+
+$infoFlowPanel.Controls.Add($step3Panel)
+
+# Step 4 Panel
+$step4Panel = New-Object System.Windows.Forms.Panel
+$step4Panel.Size = New-Object System.Drawing.Size(944, 100)
+$step4Panel.BackColor = [System.Drawing.Color]::FromArgb(235, 245, 255)
+$step4Panel.BorderStyle = "FixedSingle"
+$step4Panel.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 10)
+
+$step4Number = New-Object System.Windows.Forms.Label
+$step4Number.Text = "4"
+$step4Number.Font = New-Object System.Drawing.Font("Segoe UI", 24, [System.Drawing.FontStyle]::Bold)
+$step4Number.ForeColor = [System.Drawing.Color]::FromArgb(0, 120, 212)
+$step4Number.Size = New-Object System.Drawing.Size(50, 50)
+$step4Number.Location = New-Object System.Drawing.Point(20, 20)
+$step4Number.TextAlign = "MiddleCenter"
+$step4Panel.Controls.Add($step4Number)
+
+$step4Title = New-Object System.Windows.Forms.Label
+$step4Title.Text = "Return to Windows Setup"
+$step4Title.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$step4Title.ForeColor = [System.Drawing.Color]::FromArgb(0, 68, 120)
+$step4Title.Size = New-Object System.Drawing.Size(800, 30)
+$step4Title.Location = New-Object System.Drawing.Point(80, 20)
+$step4Panel.Controls.Add($step4Title)
+
+$step4Desc = New-Object System.Windows.Forms.Label
+$step4Desc.Text = "• Close the browser when authentication is complete`n• Return to Windows OOBE setup`n• Device will now enroll via Autopilot"
+$step4Desc.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+$step4Desc.Size = New-Object System.Drawing.Size(800, 40)
+$step4Desc.Location = New-Object System.Drawing.Point(80, 50)
+$step4Panel.Controls.Add($step4Desc)
+
+$infoFlowPanel.Controls.Add($step4Panel)
+
+# Note Section
+$notePanel = New-Object System.Windows.Forms.Panel
+$notePanel.Size = New-Object System.Drawing.Size(944, 120)
+$notePanel.BackColor = [System.Drawing.Color]::FromArgb(255, 243, 205)
+$notePanel.BorderStyle = "FixedSingle"
+$notePanel.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 20)
+
+$noteIcon = New-Object System.Windows.Forms.Label
+$noteIcon.Text = "⚠"
+$noteIcon.Font = New-Object System.Drawing.Font("Segoe UI", 20, [System.Drawing.FontStyle]::Bold)
+$noteIcon.ForeColor = [System.Drawing.Color]::FromArgb(255, 193, 7)
+$noteIcon.Size = New-Object System.Drawing.Size(50, 50)
+$noteIcon.Location = New-Object System.Drawing.Point(20, 30)
+$noteIcon.TextAlign = "MiddleCenter"
+$notePanel.Controls.Add($noteIcon)
+
+$noteTitle = New-Object System.Windows.Forms.Label
+$noteTitle.Text = "IMPORTANT: Browser Authentication"
+$noteTitle.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$noteTitle.ForeColor = [System.Drawing.Color]::FromArgb(133, 100, 4)
+$noteTitle.Size = New-Object System.Drawing.Size(800, 30)
+$noteTitle.Location = New-Object System.Drawing.Point(80, 20)
+$notePanel.Controls.Add($noteTitle)
+
+$noteText = New-Object System.Windows.Forms.Label
+$noteText.Text = "Authentication happens in your web browser, NOT in PowerShell.`nThis is the same experience as running Get-WindowsAutopilotInfo -Online."
+$noteText.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+$noteText.Size = New-Object System.Drawing.Size(800, 40)
+$noteText.Location = New-Object System.Drawing.Point(80, 50)
+$notePanel.Controls.Add($noteText)
+
+$infoFlowPanel.Controls.Add($notePanel)
+
+$infoTab.Controls.Add($infoFlowPanel)
+
+# ============================================
+# TAB 3: GUIDE (NEW VISUAL GUIDE TAB)
+# ============================================
+$guideTab = New-Object System.Windows.Forms.TabPage
+$guideTab.Text = "Guide"
+$guideTab.BackColor = [System.Drawing.Color]::White
+
+# Create a flow layout panel for better scrolling
+$guideFlowPanel = New-Object System.Windows.Forms.FlowLayoutPanel
+$guideFlowPanel.Size = New-Object System.Drawing.Size(964, 595)
+$guideFlowPanel.Location = New-Object System.Drawing.Point(0, 0)
+$guideFlowPanel.FlowDirection = "TopDown"
+$guideFlowPanel.WrapContents = $false
+$guideFlowPanel.AutoScroll = $true
+$guideFlowPanel.AutoSize = $false
+
+# Guide Header
+$guideHeader = New-Object System.Windows.Forms.Panel
+$guideHeader.Size = New-Object System.Drawing.Size(944, 80)
+$guideHeader.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 212)
+$guideHeader.BorderStyle = "FixedSingle"
+$guideHeader.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 10)
+
+$guideTitle = New-Object System.Windows.Forms.Label
+$guideTitle.Text = "📋 Visual Guide"
+$guideTitle.Font = New-Object System.Drawing.Font("Segoe UI", 18, [System.Drawing.FontStyle]::Bold)
+$guideTitle.ForeColor = [System.Drawing.Color]::White
+$guideTitle.Size = New-Object System.Drawing.Size(400, 40)
+$guideTitle.Location = New-Object System.Drawing.Point(20, 20)
+$guideHeader.Controls.Add($guideTitle)
+
+$guideSubtitle = New-Object System.Windows.Forms.Label
+$guideSubtitle.Text = "Step-by-Step Visual Instructions"
+$guideSubtitle.Font = New-Object System.Drawing.Font("Segoe UI", 11)
+$guideSubtitle.ForeColor = [System.Drawing.Color]::LightGray
+$guideSubtitle.Size = New-Object System.Drawing.Size(400, 30)
+$guideSubtitle.Location = New-Object System.Drawing.Point(20, 50)
+$guideHeader.Controls.Add($guideSubtitle)
+
+$guideFlowPanel.Controls.Add($guideHeader)
+
+# Step 1: Introduction
+$guideStep1 = New-Object System.Windows.Forms.Panel
+$guideStep1.Size = New-Object System.Drawing.Size(944, 120)
+$guideStep1.BackColor = [System.Drawing.Color]::White
+$guideStep1.BorderStyle = "FixedSingle"
+$guideStep1.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 10)
+
+$guideStep1Icon = New-Object System.Windows.Forms.Label
+$guideStep1Icon.Text = "🎯"
+$guideStep1Icon.Font = New-Object System.Drawing.Font("Segoe UI", 30)
+$guideStep1Icon.Size = New-Object System.Drawing.Size(80, 80)
+$guideStep1Icon.Location = New-Object System.Drawing.Point(20, 20)
+$guideStep1.Controls.Add($guideStep1Icon)
+
+$guideStep1Title = New-Object System.Windows.Forms.Label
+$guideStep1Title.Text = "What This Tool Does"
+$guideStep1Title.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
+$guideStep1Title.ForeColor = [System.Drawing.Color]::FromArgb(0, 68, 120)
+$guideStep1Title.Size = New-Object System.Drawing.Size(400, 35)
+$guideStep1Title.Location = New-Object System.Drawing.Point(120, 20)
+$guideStep1.Controls.Add($guideStep1Title)
+
+$guideStep1Text = New-Object System.Windows.Forms.Label
+$guideStep1Text.Text = "Automates Windows device registration to Microsoft Intune for Autopilot deployment.`nInstalls required components and opens Intune portal for authentication."
+$guideStep1Text.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+$guideStep1Text.Size = New-Object System.Drawing.Size(780, 50)
+$guideStep1Text.Location = New-Object System.Drawing.Point(120, 60)
+$guideStep1.Controls.Add($guideStep1Text)
+
+$guideFlowPanel.Controls.Add($guideStep1)
+
+# Step 2: Launch Tool
+$guideStep2 = New-Object System.Windows.Forms.Panel
+$guideStep2.Size = New-Object System.Drawing.Size(944, 150)
+$guideStep2.BackColor = [System.Drawing.Color]::White
+$guideStep2.BorderStyle = "FixedSingle"
+$guideStep2.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 10)
+
+$guideStep2Header = New-Object System.Windows.Forms.Panel
+$guideStep2Header.Size = New-Object System.Drawing.Size(944, 40)
+$guideStep2Header.Location = New-Object System.Drawing.Point(0, 0)
+$guideStep2Header.BackColor = [System.Drawing.Color]::FromArgb(220, 247, 220)
+$guideStep2.Controls.Add($guideStep2Header)
+
+$guideStep2Num = New-Object System.Windows.Forms.Label
+$guideStep2Num.Text = "1"
+$guideStep2Num.Font = New-Object System.Drawing.Font("Segoe UI", 18, [System.Drawing.FontStyle]::Bold)
+$guideStep2Num.ForeColor = [System.Drawing.Color]::FromArgb(40, 167, 69)
+$guideStep2Num.Size = New-Object System.Drawing.Size(40, 40)
+$guideStep2Num.Location = New-Object System.Drawing.Point(10, 0)
+$guideStep2Num.TextAlign = "MiddleCenter"
+$guideStep2Header.Controls.Add($guideStep2Num)
+
+$guideStep2Title = New-Object System.Windows.Forms.Label
+$guideStep2Title.Text = "Launch the Tool"
+$guideStep2Title.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$guideStep2Title.ForeColor = [System.Drawing.Color]::FromArgb(0, 68, 120)
+$guideStep2Title.Size = New-Object System.Drawing.Size(200, 30)
+$guideStep2Title.Location = New-Object System.Drawing.Point(60, 5)
+$guideStep2Header.Controls.Add($guideStep2Title)
+
+$guideStep2Content = New-Object System.Windows.Forms.Label
+$guideStep2Content.Text = "💻 Open PowerShell as Administrator`n📁 Navigate to script location`n▶️ Run: .\AutopilotUploadTool.ps1`n🖥️ Tool interface will appear"
+$guideStep2Content.Font = New-Object System.Drawing.Font("Segoe UI", 11)
+$guideStep2Content.Size = New-Object System.Drawing.Size(900, 90)
+$guideStep2Content.Location = New-Object System.Drawing.Point(20, 50)
+$guideStep2.Controls.Add($guideStep2Content)
+
+$guideFlowPanel.Controls.Add($guideStep2)
+
+# Step 3: Tool Interface
+$guideStep3 = New-Object System.Windows.Forms.Panel
+$guideStep3.Size = New-Object System.Drawing.Size(944, 200)
+$guideStep3.BackColor = [System.Drawing.Color]::White
+$guideStep3.BorderStyle = "FixedSingle"
+$guideStep3.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 10)
+
+$guideStep3Header = New-Object System.Windows.Forms.Panel
+$guideStep3Header.Size = New-Object System.Drawing.Size(944, 40)
+$guideStep3Header.Location = New-Object System.Drawing.Point(0, 0)
+$guideStep3Header.BackColor = [System.Drawing.Color]::FromArgb(220, 240, 255)
+$guideStep3.Controls.Add($guideStep3Header)
+
+$guideStep3Num = New-Object System.Windows.Forms.Label
+$guideStep3Num.Text = "2"
+$guideStep3Num.Font = New-Object System.Drawing.Font("Segoe UI", 18, [System.Drawing.FontStyle]::Bold)
+$guideStep3Num.ForeColor = [System.Drawing.Color]::FromArgb(0, 120, 212)
+$guideStep3Num.Size = New-Object System.Drawing.Size(40, 40)
+$guideStep3Num.Location = New-Object System.Drawing.Point(10, 0)
+$guideStep3Num.TextAlign = "MiddleCenter"
+$guideStep3Header.Controls.Add($guideStep3Num)
+
+$guideStep3Title = New-Object System.Windows.Forms.Label
+$guideStep3Title.Text = "Tool Interface"
+$guideStep3Title.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$guideStep3Title.ForeColor = [System.Drawing.Color]::FromArgb(0, 68, 120)
+$guideStep3Title.Size = New-Object System.Drawing.Size(200, 30)
+$guideStep3Title.Location = New-Object System.Drawing.Point(60, 5)
+$guideStep3Header.Controls.Add($guideStep3Title)
+
+# Interface Illustration
+$interfaceBox = New-Object System.Windows.Forms.Panel
+$interfaceBox.Size = New-Object System.Drawing.Size(920, 140)
+$interfaceBox.Location = New-Object System.Drawing.Point(10, 50)
+$interfaceBox.BackColor = [System.Drawing.Color]::FromArgb(248, 249, 250)
+$interfaceBox.BorderStyle = "FixedSingle"
+
+$interfaceTabs = New-Object System.Windows.Forms.Label
+$interfaceTabs.Text = "📋 Upload   📖 Info   🎯 Guide"
+$interfaceTabs.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+$interfaceTabs.Size = New-Object System.Drawing.Size(300, 30)
+$interfaceTabs.Location = New-Object System.Drawing.Point(20, 20)
+$interfaceBox.Controls.Add($interfaceTabs)
+
+$deviceInfoBox = New-Object System.Windows.Forms.Label
+$deviceInfoBox.Text = "📱 Device Information:`n• Computer Name: DESKTOP-ABC123`n• Serial Number: ABC123XYZ`n• Status: Ready for upload"
+$deviceInfoBox.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$deviceInfoBox.Size = New-Object System.Drawing.Size(400, 80)
+$deviceInfoBox.Location = New-Object System.Drawing.Point(20, 50)
+$interfaceBox.Controls.Add($deviceInfoBox)
+
+$uploadBtnBox = New-Object System.Windows.Forms.Panel
+$uploadBtnBox.Size = New-Object System.Drawing.Size(180, 50)
+$uploadBtnBox.Location = New-Object System.Drawing.Point(500, 50)
+$uploadBtnBox.BackColor = [System.Drawing.Color]::FromArgb(40, 167, 69)
+$uploadBtnBox.BorderStyle = "FixedSingle"
+$interfaceBox.Controls.Add($uploadBtnBox)
+
+$uploadBtnText = New-Object System.Windows.Forms.Label
+$uploadBtnText.Text = "UPLOAD NOW"
+$uploadBtnText.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+$uploadBtnText.ForeColor = [System.Drawing.Color]::White
+$uploadBtnText.Size = New-Object System.Drawing.Size(160, 30)
+$uploadBtnText.Location = New-Object System.Drawing.Point(10, 10)
+$uploadBtnText.TextAlign = "MiddleCenter"
+$uploadBtnBox.Controls.Add($uploadBtnText)
+
+$guideStep3.Controls.Add($interfaceBox)
+$guideFlowPanel.Controls.Add($guideStep3)
+
+# Step 4: Upload Process
+$guideStep4 = New-Object System.Windows.Forms.Panel
+$guideStep4.Size = New-Object System.Drawing.Size(944, 180)
+$guideStep4.BackColor = [System.Drawing.Color]::White
+$guideStep4.BorderStyle = "FixedSingle"
+$guideStep4.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 10)
+
+$guideStep4Header = New-Object System.Windows.Forms.Panel
+$guideStep4Header.Size = New-Object System.Drawing.Size(944, 40)
+$guideStep4Header.Location = New-Object System.Drawing.Point(0, 0)
+$guideStep4Header.BackColor = [System.Drawing.Color]::FromArgb(255, 243, 205)
+$guideStep4.Controls.Add($guideStep4Header)
+
+$guideStep4Num = New-Object System.Windows.Forms.Label
+$guideStep4Num.Text = "3"
+$guideStep4Num.Font = New-Object System.Drawing.Font("Segoe UI", 18, [System.Drawing.FontStyle]::Bold)
+$guideStep4Num.ForeColor = [System.Drawing.Color]::FromArgb(255, 193, 7)
+$guideStep4Num.Size = New-Object System.Drawing.Size(40, 40)
+$guideStep4Num.Location = New-Object System.Drawing.Point(10, 0)
+$guideStep4Num.TextAlign = "MiddleCenter"
+$guideStep4Header.Controls.Add($guideStep4Num)
+
+$guideStep4Title = New-Object System.Windows.Forms.Label
+$guideStep4Title.Text = "Upload Process"
+$guideStep4Title.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$guideStep4Title.ForeColor = [System.Drawing.Color]::FromArgb(133, 100, 4)
+$guideStep4Title.Size = New-Object System.Drawing.Size(200, 30)
+$guideStep4Title.Location = New-Object System.Drawing.Point(60, 5)
+$guideStep4Header.Controls.Add($guideStep4Title)
+
+$guideStep4Content = New-Object System.Windows.Forms.Label
+$guideStep4Content.Text = "🖱️ Click 'UPLOAD NOW' button`n⚙️ Tool installs module (if needed)`n🌐 Opens Intune portal in browser`n🔐 Complete authentication in browser`n✅ Device automatically registered"
+$guideStep4Content.Font = New-Object System.Drawing.Font("Segoe UI", 11)
+$guideStep4Content.Size = New-Object System.Drawing.Size(900, 120)
+$guideStep4Content.Location = New-Object System.Drawing.Point(20, 50)
+$guideStep4.Controls.Add($guideStep4Content)
+
+$guideFlowPanel.Controls.Add($guideStep4)
+
+# Step 5: Browser Authentication
+$guideStep5 = New-Object System.Windows.Forms.Panel
+$guideStep5.Size = New-Object System.Drawing.Size(944, 160)
+$guideStep5.BackColor = [System.Drawing.Color]::White
+$guideStep5.BorderStyle = "FixedSingle"
+$guideStep5.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 10)
+
+$guideStep5Header = New-Object System.Windows.Forms.Panel
+$guideStep5Header.Size = New-Object System.Drawing.Size(944, 40)
+$guideStep5Header.Location = New-Object System.Drawing.Point(0, 0)
+$guideStep5Header.BackColor = [System.Drawing.Color]::FromArgb(255, 235, 238)
+$guideStep5.Controls.Add($guideStep5Header)
+
+$guideStep5Num = New-Object System.Windows.Forms.Label
+$guideStep5Num.Text = "4"
+$guideStep5Num.Font = New-Object System.Drawing.Font("Segoe UI", 18, [System.Drawing.FontStyle]::Bold)
+$guideStep5Num.ForeColor = [System.Drawing.Color]::FromArgb(220, 53, 69)
+$guideStep5Num.Size = New-Object System.Drawing.Size(40, 40)
+$guideStep5Num.Location = New-Object System.Drawing.Point(10, 0)
+$guideStep5Num.TextAlign = "MiddleCenter"
+$guideStep5Header.Controls.Add($guideStep5Num)
+
+$guideStep5Title = New-Object System.Windows.Forms.Label
+$guideStep5Title.Text = "Browser Authentication"
+$guideStep5Title.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$guideStep5Title.ForeColor = [System.Drawing.Color]::FromArgb(0, 68, 120)
+$guideStep5Title.Size = New-Object System.Drawing.Size(200, 30)
+$guideStep5Title.Location = New-Object System.Drawing.Point(60, 5)
+$guideStep5Header.Controls.Add($guideStep5Title)
+
+$guideStep5Content = New-Object System.Windows.Forms.Label
+$guideStep5Content.Text = "🌐 Browser opens to Microsoft login`n👤 Sign in with Intune Admin account`n🔒 Complete authentication steps`n📤 Device hardware hash uploaded`n🏁 Return to Windows setup"
+$guideStep5Content.Font = New-Object System.Drawing.Font("Segoe UI", 11)
+$guideStep5Content.Size = New-Object System.Drawing.Size(900, 100)
+$guideStep5Content.Location = New-Object System.Drawing.Point(20, 50)
+$guideStep5.Controls.Add($guideStep5Content)
+
+$guideFlowPanel.Controls.Add($guideStep5)
+
+# Step 6: Completion
+$guideStep6 = New-Object System.Windows.Forms.Panel
+$guideStep6.Size = New-Object System.Drawing.Size(944, 140)
+$guideStep6.BackColor = [System.Drawing.Color]::White
+$guideStep6.BorderStyle = "FixedSingle"
+$guideStep6.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 10)
+
+$guideStep6Header = New-Object System.Windows.Forms.Panel
+$guideStep6Header.Size = New-Object System.Drawing.Size(944, 40)
+$guideStep6Header.Location = New-Object System.Drawing.Point(0, 0)
+$guideStep6Header.BackColor = [System.Drawing.Color]::FromArgb(230, 245, 230)
+$guideStep6.Controls.Add($guideStep6Header)
+
+$guideStep6Num = New-Object System.Windows.Forms.Label
+$guideStep6Num.Text = "5"
+$guideStep6Num.Font = New-Object System.Drawing.Font("Segoe UI", 18, [System.Drawing.FontStyle]::Bold)
+$guideStep6Num.ForeColor = [System.Drawing.Color]::FromArgb(40, 167, 69)
+$guideStep6Num.Size = New-Object System.Drawing.Size(40, 40)
+$guideStep6Num.Location = New-Object System.Drawing.Point(10, 0)
+$guideStep6Num.TextAlign = "MiddleCenter"
+$guideStep6Header.Controls.Add($guideStep6Num)
+
+$guideStep6Title = New-Object System.Windows.Forms.Label
+$guideStep6Title.Text = "Success & Verification"
+$guideStep6Title.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$guideStep6Title.ForeColor = [System.Drawing.Color]::FromArgb(0, 68, 120)
+$guideStep6Title.Size = New-Object System.Drawing.Size(200, 30)
+$guideStep6Title.Location = New-Object System.Drawing.Point(60, 5)
+$guideStep6Header.Controls.Add($guideStep6Title)
+
+$guideStep6Content = New-Object System.Windows.Forms.Label
+$guideStep6Content.Text = "✅ Device uploaded to Intune`n📋 Check in Intune portal:`n   • Devices > Windows Enrollment > Devices`n   • Look for device by serial number`n🚀 Device ready for Autopilot deployment"
+$guideStep6Content.Font = New-Object System.Drawing.Font("Segoe UI", 11)
+$guideStep6Content.Size = New-Object System.Drawing.Size(900, 80)
+$guideStep6Content.Location = New-Object System.Drawing.Point(20, 50)
+$guideStep6.Controls.Add($guideStep6Content)
+
+$guideFlowPanel.Controls.Add($guideStep6)
+
+# Closing Note
+$closingNote = New-Object System.Windows.Forms.Panel
+$closingNote.Size = New-Object System.Drawing.Size(944, 100)
+$closingNote.BackColor = [System.Drawing.Color]::FromArgb(240, 247, 255)
+$closingNote.BorderStyle = "FixedSingle"
+
+$closingIcon = New-Object System.Windows.Forms.Label
+$closingIcon.Text = "💡"
+$closingIcon.Font = New-Object System.Drawing.Font("Segoe UI", 30)
+$closingIcon.Size = New-Object System.Drawing.Size(80, 80)
+$closingIcon.Location = New-Object System.Drawing.Point(20, 10)
+$closingNote.Controls.Add($closingIcon)
+
+$closingTitle = New-Object System.Windows.Forms.Label
+$closingTitle.Text = "Ready to Get Started?"
+$closingTitle.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
+$closingTitle.ForeColor = [System.Drawing.Color]::FromArgb(0, 68, 120)
+$closingTitle.Size = New-Object System.Drawing.Size(400, 35)
+$closingTitle.Location = New-Object System.Drawing.Point(120, 20)
+$closingNote.Controls.Add($closingTitle)
+
+$closingText = New-Object System.Windows.Forms.Label
+$closingText.Text = "Go back to the 'Upload' tab to begin!"
+$closingText.Font = New-Object System.Drawing.Font("Segoe UI", 11)
+$closingText.Size = New-Object System.Drawing.Size(400, 30)
+$closingText.Location = New-Object System.Drawing.Point(120, 60)
+$closingNote.Controls.Add($closingText)
+
+$guideFlowPanel.Controls.Add($closingNote)
+
+$guideTab.Controls.Add($guideFlowPanel)
+
+# ============================================
+# ADD TABS TO TAB CONTROL
+# ============================================
+$tabControl.Controls.Add($uploadTab)
+$tabControl.Controls.Add($infoTab)
+$tabControl.Controls.Add($guideTab)
+
+# Add controls to form
+$form.Controls.Add($headerPanel)
+$form.Controls.Add($tabControl)
+
+# ============================================
+# FUNCTIONS
+# ============================================
+function Update-Status {
+    param([string]$Message, [string]$Color = "Green")
+    
+    $statusLabel.Text = $Message
+    
+    switch ($Color) {
+        "Green" { $statusLabel.ForeColor = [System.Drawing.Color]::LightGreen }
+        "Yellow" { $statusLabel.ForeColor = [System.Drawing.Color]::Yellow }
+        "Red" { $statusLabel.ForeColor = [System.Drawing.Color]::LightCoral }
+        "Blue" { $statusLabel.ForeColor = [System.Drawing.Color]::LightBlue }
+    }
+}
+
+function Test-Administrator {
+    try {
+        $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+        $Script:IsAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        return $Script:IsAdmin
+    } catch {
+        $Script:IsAdmin = $false
+        return $false
+    }
+}
+
+function Test-InternetConnection {
+    try {
+        $test = Test-NetConnection -ComputerName "www.microsoft.com" -Port 443 -InformationLevel Quiet -ErrorAction Stop
+        $Script:OnlineMode = $test
+        return $test
+    } catch {
+        try {
+            $test = Test-Connection -ComputerName "8.8.8.8" -Count 1 -Quiet -ErrorAction Stop
+            $Script:OnlineMode = $test
+            return $test
+        } catch {
+            $Script:OnlineMode = $false
+            return $false
+        }
+    }
+}
+
+function Test-ModuleInstalled {
+    try {
+        $module = Get-Command -Name $Script:ModuleName -ErrorAction SilentlyContinue
+        $Script:ModuleInstalled = [bool]$module
+        return $Script:ModuleInstalled
+    } catch {
+        $Script:ModuleInstalled = $false
+        return $false
+    }
+}
+
+function Get-DeviceInfo {
+    try {
+        $deviceInfo = @(
+            [PSCustomObject]@{Property = "Computer Name"; Value = $env:COMPUTERNAME},
+            [PSCustomObject]@{Property = "Serial Number"; Value = (Get-WmiObject -Class Win32_BIOS).SerialNumber},
+            [PSCustomObject]@{Property = "Manufacturer"; Value = (Get-WmiObject -Class Win32_ComputerSystem).Manufacturer},
+            [PSCustomObject]@{Property = "Model"; Value = (Get-WmiObject -Class Win32_ComputerSystem).Model},
+            [PSCustomObject]@{Property = "Windows Version"; Value = (Get-WmiObject -Class Win32_OperatingSystem).Caption},
+            [PSCustomObject]@{Property = "PowerShell Admin"; Value = $(if ($Script:IsAdmin) {"Yes"} else {"No"})},
+            [PSCustomObject]@{Property = "Module Installed"; Value = $(if ($Script:ModuleInstalled) {"Yes"} else {"No"})},
+            [PSCustomObject]@{Property = "Internet Connection"; Value = $(if ($Script:OnlineMode) {"Available"} else {"Not Available"})},
+            [PSCustomObject]@{Property = "Status"; Value = "Ready for upload"}
+        )
+        return $deviceInfo
+    } catch {
+        return @(
+            [PSCustomObject]@{Property = "Error"; Value = "Could not retrieve device information"}
+        )
+    }
+}
+
+function Populate-DeviceGrid {
+    $deviceInfo = Get-DeviceInfo
+    
+    $deviceGrid.Rows.Clear()
+    foreach ($item in $deviceInfo) {
+        $rowIndex = $deviceGrid.Rows.Add($item.Property, $item.Value)
+        
+        # Style based on property
+        switch ($item.Property) {
+            "Status" {
+                $deviceGrid.Rows[$rowIndex].Cells[1].Style.ForeColor = [System.Drawing.Color]::Green
+                $deviceGrid.Rows[$rowIndex].Cells[1].Style.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+            }
+            "Serial Number" {
+                $deviceGrid.Rows[$rowIndex].Cells[1].Style.Font = New-Object System.Drawing.Font("Consolas", 9, [System.Drawing.FontStyle]::Bold)
+            }
+            "PowerShell Admin" {
+                if ($item.Value -eq "Yes") {
+                    $deviceGrid.Rows[$rowIndex].Cells[1].Style.ForeColor = [System.Drawing.Color]::Green
+                } else {
+                    $deviceGrid.Rows[$rowIndex].Cells[1].Style.ForeColor = [System.Drawing.Color]::Orange
+                }
+            }
+            "Module Installed" {
+                if ($item.Value -eq "Yes") {
+                    $deviceGrid.Rows[$rowIndex].Cells[1].Style.ForeColor = [System.Drawing.Color]::Green
+                } else {
+                    $deviceGrid.Rows[$rowIndex].Cells[1].Style.ForeColor = [System.Drawing.Color]::Red
+                }
+            }
+            "Internet Connection" {
+                if ($item.Value -eq "Available") {
+                    $deviceGrid.Rows[$rowIndex].Cells[1].Style.ForeColor = [System.Drawing.Color]::Green
+                } else {
+                    $deviceGrid.Rows[$rowIndex].Cells[1].Style.ForeColor = [System.Drawing.Color]::Red
+                }
+            }
+        }
+    }
+}
+
+function Install-AutopilotModule {
+    Update-Status "Installing PowerShell module..." "Blue"
+    $progressBar.Value = 10
+    $progressBar.Visible = $true
+    
+    try {
+        # Check if already installed
+        if (Test-ModuleInstalled) {
+            Update-Status "Module already installed" "Green"
+            $progressBar.Value = 100
+            return $true
+        }
+        
+        # Check internet
+        if (-not $Script:OnlineMode) {
+            Update-Status "No internet connection" "Red"
+            [System.Windows.Forms.MessageBox]::Show(
+                "Internet connection required to install PowerShell module.`nPlease connect to network and try again.",
+                "No Internet Connection",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Error
+            )
+            return $false
+        }
+        
+        # Step 1: Set TLS 1.2
+        Update-Status "Setting TLS 1.2..." "Blue"
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $progressBar.Value = 20
+        
+        # Step 2: Set Execution Policy
+        Update-Status "Setting execution policy..." "Blue"
+        Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force
+        $progressBar.Value = 30
+        
+        # Step 3: Install NuGet provider
+        Update-Status "Installing NuGet provider..." "Blue"
+        try {
+            Get-PackageProvider -Name NuGet -ForceBootstrap -ErrorAction Stop | Out-Null
+            Update-Status "NuGet provider installed" "Green"
+        } catch {
+            Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -ErrorAction Stop
+            Update-Status "NuGet provider installed" "Green"
+        }
+        $progressBar.Value = 40
+        
+        # Step 4: Trust PowerShell Gallery
+        Update-Status "Trusting PowerShell Gallery..." "Blue"
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction Stop
+        $progressBar.Value = 50
+        
+        # Step 5: Install Get-WindowsAutopilotInfo module
+        Update-Status "Installing Get-WindowsAutopilotInfo..." "Blue"
+        
+        # Try multiple installation methods
+        $installed = $false
+        $attempts = 0
+        
+        while (-not $installed -and $attempts -lt 2) {
+            $attempts++
+            Update-Status "Installation attempt $attempts..." "Blue"
+            
+            try {
+                if ($attempts -eq 1) {
+                    # Try Install-Script
+                    Install-Script -Name Get-WindowsAutopilotInfo -Force -ErrorAction Stop
+                    Update-Status "Module installed via Install-Script" "Green"
+                    $installed = $true
+                } else {
+                    # Try alternative
+                    Install-Module -Name WindowsAutopilotIntune -Force -ErrorAction Stop
+                    Update-Status "Module installed via Install-Module" "Green"
+                    $installed = $true
+                }
+            } catch {
+                Update-Status "Attempt $attempts failed" "Yellow"
+                if ($attempts -eq 2) {
+                    throw "All installation attempts failed"
+                }
+                Start-Sleep -Seconds 2
+            }
+        }
+        
+        $progressBar.Value = 80
+        
+        # Verify installation
+        Update-Status "Verifying installation..." "Blue"
+        Start-Sleep -Seconds 2
+        
+        if (Test-ModuleInstalled) {
+            Update-Status "Module installed successfully!" "Green"
+            $progressBar.Value = 100
+            
+            # Update device grid
+            Populate-DeviceGrid
+            
+            return $true
+        } else {
+            Update-Status "Module may need restart" "Yellow"
+            $progressBar.Value = 100
+            return $false
+        }
+        
+    } catch {
+        Update-Status "Module installation failed: $($_.Exception.Message)" "Red"
+        $progressBar.Value = 100
+        
+        [System.Windows.Forms.MessageBox]::Show(
+            "Module installation failed:`n`n$($_.Exception.Message)`n`nPlease try:`n1. Run PowerShell as Administrator`n2. Check internet connection`n3. Try manual installation",
+            "Installation Failed",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error
+        )
+        return $false
+        
+    } finally {
+        $progressBar.Visible = $false
+        $progressBar.Value = 0
+    }
+}
+
+function Start-FullUpload {
+    # Disable button during process
+    $uploadButton.Enabled = $false
+    $originalText = $uploadButton.Text
+    $originalColor = $uploadButton.BackColor
+    
+    $uploadButton.Text = "PROCESSING..."
+    $uploadButton.BackColor = [System.Drawing.Color]::FromArgb(108, 117, 125)
+    
+    Update-Status "Starting automated upload..." "Blue"
+    
+    try {
+        # Step 1: Install module if needed
+        if (-not $Script:ModuleInstalled) {
+            Update-Status "Module not found. Installing..." "Blue"
+            
+            $installResult = Install-AutopilotModule
+            if (-not $installResult) {
+                throw "Module installation failed. Cannot proceed with upload."
+            }
+            
+            # Refresh module status
+            Test-ModuleInstalled
+            if (-not $Script:ModuleInstalled) {
+                throw "Module still not detected after installation"
+            }
+            
+            Update-Status "Module installed. Continuing..." "Green"
+        }
+        
+        # Step 2: Configure PowerShell settings
+        Update-Status "Configuring PowerShell..." "Blue"
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force
+        
+        # Step 3: Open browser with Intune authentication URL
+        Update-Status "Opening Intune authentication portal in browser..." "Blue"
+        
+        # Show confirmation dialog
+        $confirm = [System.Windows.Forms.MessageBox]::Show(
+            "This will open the Microsoft Intune authentication portal in your default browser.`n`nComplete these steps in the browser:`n`n1. Sign in with Intune Administrator credentials`n   Format: user@domain.com`n2. Complete the authentication process`n3. Device will be automatically registered`n`nContinue?",
+            "Open Intune Browser Portal",
+            [System.Windows.Forms.MessageBoxButtons]::YesNo,
+            [System.Windows.Forms.MessageBoxIcon]::Information
+        )
+        
+        if ($confirm -eq "Yes") {
+            # Show progress bar
+            $progressBar.Visible = $true
+            $progressBar.Value = 50
+            
+            # Open the Intune enrollment URL in browser
+            Start-Process $Script:IntuneEnrollmentURL
+            
+            $progressBar.Value = 100
+            
+            # Get device info for success message
+            $deviceInfo = Get-DeviceInfo
+            $serialNumber = ($deviceInfo | Where-Object {$_.Property -eq "Serial Number"}).Value
+            
+            Update-Status "Browser opened successfully!" "Green"
+            
+            # Success message with instructions
+            $successMessage = @"
+✅ Intune authentication portal opened in browser!
+
+📋 COMPLETE THESE STEPS IN THE BROWSER:
+
+1. SIGN IN:
+   • Use Intune Administrator credentials
+   • Format: user@domain.com
+
+2. COMPLETE AUTHENTICATION:
+   • Follow Microsoft authentication steps
+   • Device hardware hash will be uploaded automatically
+
+3. VERIFY IN INTUNE:
+   • Go to Intune > Devices > Windows Enrollment > Devices
+   • Look for device by serial number: $serialNumber
+
+4. RETURN TO WINDOWS:
+   • Close browser when done
+   • Return to Windows OOBE setup
+   • Device will enroll via Autopilot
+
+⚠ NOTE: Authentication happens in the browser, NOT in PowerShell.
+"@
+            
+            [System.Windows.Forms.MessageBox]::Show(
+                $successMessage,
+                "Intune Portal Opened - Complete Authentication in Browser",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Information
+            )
+            
+            # Update button and status
+            $uploadButton.Text = "UPLOAD COMPLETE"
+            $uploadButton.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 212)
+            
+            # Update device status in grid
+            $deviceGrid.Rows.Clear()
+            Get-DeviceInfo | ForEach-Object {
+                if ($_.Property -eq "Status") {
+                    $deviceGrid.Rows.Add($_.Property, "Intune portal opened - complete authentication in browser") | Out-Null
+                } else {
+                    $deviceGrid.Rows.Add($_.Property, $_.Value) | Out-Null
+                }
+            }
+            
+        } else {
+            Update-Status "Upload cancelled by user" "Yellow"
+            $uploadButton.Text = $originalText
+            $uploadButton.BackColor = $originalColor
+            $uploadButton.Enabled = $true
+        }
+        
+    } catch {
+        Update-Status "Error: $($_.Exception.Message)" "Red"
+        
+        $errorMessage = @"
+❌ Failed to open Intune portal!
+
+Error: $($_.Exception.Message)
+
+MANUAL STEPS:
+1. Open your web browser
+2. Navigate to:
+   $Script:IntuneEnrollmentURL
+3. Sign in with Intune Admin credentials
+4. Complete device registration
+"@
+        
+        [System.Windows.Forms.MessageBox]::Show(
+            $errorMessage,
+            "Error - Manual Steps Required",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error
+        )
+        
+        # Reset button
+        $uploadButton.Text = "TRY AGAIN"
+        $uploadButton.BackColor = [System.Drawing.Color]::FromArgb(220, 53, 69)
+        $uploadButton.Enabled = $true
+        
+    } finally {
+        # Cleanup
+        $progressBar.Visible = $false
+        $progressBar.Value = 0
+        
+        # Re-enable button after delay if still disabled
+        if (-not $uploadButton.Enabled) {
+            Start-Sleep -Seconds 3
+            $uploadButton.Enabled = $true
+            if ($Script:ModuleInstalled) {
+                $uploadButton.Text = "UPLOAD NOW"
+                $uploadButton.BackColor = [System.Drawing.Color]::FromArgb(40, 167, 69)
+            } else {
+                $uploadButton.Text = "INSTALL & UPLOAD"
+                $uploadButton.BackColor = [System.Drawing.Color]::FromArgb(255, 140, 0)
+            }
+            Update-Status "Ready for upload" "Green"
+        }
+    }
+}
+
+function Initialize-Tool {
+    Update-Status "Initializing..." "Blue"
+    
+    # Check system status
+    Test-Administrator
+    Test-InternetConnection
+    Test-ModuleInstalled
+    
+    # Populate device grid
+    Populate-DeviceGrid
+    
+    # Update upload button based on status
+    if ($Script:ModuleInstalled) {
+        $uploadButton.Text = "UPLOAD NOW"
+        $uploadButton.BackColor = [System.Drawing.Color]::FromArgb(40, 167, 69)
+        $uploadButton.Enabled = $true
+        Update-Status "Ready - Module installed" "Green"
+    } elseif ($Script:OnlineMode) {
+        $uploadButton.Text = "INSTALL & UPLOAD"
+        $uploadButton.BackColor = [System.Drawing.Color]::FromArgb(255, 140, 0)
+        $uploadButton.Enabled = $true
+        Update-Status "Ready - Click to install module" "Yellow"
+    } else {
+        $uploadButton.Text = "NO INTERNET"
+        $uploadButton.BackColor = [System.Drawing.Color]::FromArgb(108, 117, 125)
+        $uploadButton.Enabled = $false
+        Update-Status "No internet connection" "Red"
+    }
+}
+
+# ============================================
+# EVENT HANDLERS
+# ============================================
+$uploadButton.Add_Click({
+    Start-FullUpload
+})
+
+# ============================================
+# INITIALIZATION AND SHOW FORM
+# ============================================
+# Initialize when form loads
+$form.Add_Load({
+    Initialize-Tool
+})
+
+# Show form
+[void]$form.ShowDialog()
